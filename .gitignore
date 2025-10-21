@@ -1,0 +1,13 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Streamlit & local data
+.streamlit/
+wellnest.db
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
