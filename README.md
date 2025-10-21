@@ -1,36 +1,69 @@
-# WellNest — Mood Tracker & Supportive Chat (100% local)
+# WellNest — Mood Tracker & Supportive Chat (100% Local)
 
-Privacy-first daily check-ins with a mood timeline, CSV export, and a supportive chat with crisis resources (988/911).  
-No sign-in, no cloud, no keys — runs entirely on your device (SQLite + Streamlit).
+**Privacy-first wellness tracker built with Streamlit + SQLite.**  
+Log your daily mood, sleep, and study time, visualize trends, export to CSV, and chat with a supportive offline assistant — all stored locally on your device.
 
-![Mood timeline](images/mood.png)
-![Supportive chat](images/chat.png)
+No sign-in, no cloud, no API keys — everything runs on your computer.
 
-## Run locally
-`powershell
+---
+
+**Demo Video:** [Watch on YouTube](https://youtu.be/NWBWtQHVDMU)
+
+---
+
+## Features
+- Daily logging — mood, sleep, study/focus hours, and notes  
+- Timeline chart — auto-formatted date axis for easy tracking  
+- CSV export — full data ownership, one click  
+- Crisis guardrails — shows 988/911 resources on unsafe phrases  
+- Supportive chat — grounding and reflection tips, works fully offline  
+- Local persistence — SQLite database (no external servers)
+
+---
+
+## Run Locally
+
+### 1. Set up environment
+```powershell
 python -m venv .venv
 .venv\Scripts\Activate
 pip install -r requirements.txt
+2. Run the app
+powershell
+Copy code
 python -m streamlit run app.py
+Then open your browser at http://localhost:8501
 
-Open the PR on GitHub → **Merge** → back in terminal:
+Tech Stack
+Streamlit — front-end UI
 
-`powershell
-git checkout main
-git pull
-git tag v1.0.0
-git push origin --tags
+SQLite — local database
 
-cd C:\Users\Varun\wellnest
-.venv\Scripts\Activate
+Matplotlib — charting
 
-# make sure you have the latest local-only app.py + minimal reqs
-ni .gitignore -Value @"
-.venv/
-__pycache__/
-*.pyc
-.streamlit/
-wellnest.db
-.DS_Store
-Thumbs.db
-.vscode/
+Python 3.12+ — runtime environment
+
+Privacy & Safety
+Runs entirely on your local machine
+
+No accounts, network calls, or external APIs
+
+Data stored in wellnest.db (git-ignored)
+
+Automatically shows crisis resources when unsafe text is detected
+
+Build Timeline (Retrospective + Ongoing)
+Oct 21 2025 — Rebuilt WellNest as 100% local app; added crisis banner and readable chart
+
+Oct 22 2025 — Added form reset and data-management tools
+
+Oct 23 2025 — Recorded demo video and refined README
+
+License
+MIT License © 2025 Varun Umapathy
+Fork or adapt for educational and personal use.
+
+Links
+Demo Video: https://youtu.be/NWBWtQHVDMU
+
+GitHub Repo: https://github.com/VarunUmapathy07/wellnest
