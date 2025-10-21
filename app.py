@@ -1,3 +1,4 @@
+# app.py — WellNest (100% local, no OpenAI)
 import os
 import sqlite3
 from contextlib import contextmanager
@@ -7,12 +8,6 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-
-# Optional OpenAI; app runs without it
-try:
-    from openai import OpenAI
-except Exception:
-    OpenAI = None
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "wellnest.db")
 
@@ -28,8 +23,7 @@ def get_conn():
 
 def init_db():
     with get_conn() as conn:
-        cur = conn.cursor()
-        cur.execute("""
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS mood_entries (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 ts TEXT NOT NULL,
@@ -60,10 +54,14 @@ def clear_all_entries():
     with get_conn() as conn:
         conn.execute("DELETE FROM mood_entries")
 
-# ---------------- Safety / AI ----------------
+# ---------------- Safety / local chat ----------------
 CRISIS_KEYWORDS = [
+    # direct self-harm phrases
     "suicide","kill myself","end my life","self harm","overdose","harm myself",
-    "i want to die","hurt myself","cut myself","jump off","no reason to live"
+    "i want to die","hurt myself","cut myself","jump off","no reason to live",
+    # feeling unsafe / hopeless
+    "i dont feel safe","i don't feel safe","not safe","no longer safe",
+    "i feel hopeless","cant go on","can't go on","nothing matters","give up"
 ]
 
 def looks_like_crisis(text: str) -> bool:
@@ -78,85 +76,72 @@ def render_crisis_banner():
         "- **Crisis Text Line:** Text **HOME** to **741741**"
     )
 
-def therapist_response(user_text: str, model: str = "gpt-4o-mini", system_style: str = "supportive"):
-    api_key = os.getenv("OPENAI_API_KEY", "").strip()
-    if not api_key or OpenAI is None:
-        tips = [
-            "Try a 4-7-8 breath: inhale 4, hold 7, exhale 8.",
-            "Grounding: name 3 things you see, 2 you can touch, 1 you can hear.",
-            "Pick one small action you can finish in 10 minutes."
-        ]
-        return ("I hear you. It sounds like a lot. Here are a few gentle steps you might try: "
-                f"{tips[0]}  •  {tips[1]}  •  {tips[2]}")
-
-    try:
-        client = OpenAI(api_key=api_key)
-        resp = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role":"system","content":f"You are a brief, {system_style} CBT-style assistant. Avoid medical claims; encourage professional help as needed."},
-                {"role":"user","content":user_text}
-            ],
-            temperature=0.3,
-            max_tokens=300
-        )
-        return resp.choices[0].message.content.strip()
-    except Exception:
-        return ("(Local) I can't reach the AI service right now, but I'm here to help reflect. "
-                "Consider a small action you can take in the next 10 minutes that aligns with your values.")
-
-# ---------------- Form state helpers (use callbacks) ----------------
-DEFAULTS = {"dt": date.today(), "mood": 3, "sleep": 7.0, "study": 2.0, "note": ""}
-
-def ensure_defaults():
-    for k, v in DEFAULTS.items():
-        st.session_state.setdefault(k, v)
-
-def reset_form():
-    for k, v in DEFAULTS.items():
-        st.session_state[k] = v
-    st.rerun()
-
-def save_current_entry():
-    ss = st.session_state
-    insert_entry(str(ss.dt), int(ss.mood), float(ss.sleep), float(ss.study), ss.note.strip())
-    reset_form()  # will rerun
+def local_supportive_reply(_: str) -> str:
+    tips = [
+        "Try a 4-7-8 breath: inhale 4, hold 7, exhale 8.",
+        "Grounding: name 3 things you see, 2 you can touch, 1 you can hear.",
+        "Pick one small action you can finish in 10 minutes."
+    ]
+    return (
+        "I hear you. It sounds like a lot. Here are a few gentle steps you might try: "
+        f"{tips[0]}  •  {tips[1]}  •  {tips[2]}"
+    )
 
 # ---------------- App ----------------
+DEFAULTS = {"dt": date.today(), "mood": 3, "sleep": 7.0, "study": 2.0, "note": ""}
+
 def main():
     st.set_page_config(page_title="WellNest: Mood & Support", layout="centered")
     init_db()
 
     st.markdown(
         "<h1 style='text-align:center;margin-bottom:0'>WellNest</h1>"
-        "<p style='text-align:center;color:#888;margin-top:4px'>Mood tracking + supportive chat (privacy-first)</p>",
+        "<p style='text-align:center;color:#888;margin-top:4px'>Mood tracking + supportive chat (privacy-first, 100% local)</p>",
         unsafe_allow_html=True
     )
     st.caption("This tool is not medical care. If you're in crisis, use the resources listed below.")
 
-    tab1, tab2 = st.tabs(["📈 Mood Tracker", "💬 Supportive Chat (AI)"])
+    for k, v in DEFAULTS.items():
+        st.session_state.setdefault(k, v)
+
+    tab1, tab2 = st.tabs(["📈 Mood Tracker", "💬 Supportive Chat"])
 
     # ---------- Mood Tracker ----------
     with tab1:
-        ensure_defaults()
-
         st.subheader("Log your day")
-        col1, col2 = st.columns(2)
 
-        with col1:
-            st.date_input("Date", value=st.session_state.dt, key="dt")
-            st.slider("Mood (1 = low, 5 = high)", 1, 5, st.session_state.mood, key="mood")
-        with col2:
-            st.number_input("Sleep (hours)", 0.0, 24.0, st.session_state.sleep, 0.5, key="sleep")
-            st.number_input("Study/Focus (hours)", 0.0, 24.0, st.session_state.study, 0.5, key="study")
+        # form to avoid rerun warnings
+        with st.form("log_form", clear_on_submit=False):
+            col1, col2 = st.columns(2)
+            with col1:
+                st.session_state.dt = st.date_input("Date", value=st.session_state.dt)
+                st.session_state.mood = st.slider("Mood (1 = low, 5 = high)", 1, 5, st.session_state.mood)
+            with col2:
+                st.session_state.sleep = st.number_input("Sleep (hours)", 0.0, 24.0, st.session_state.sleep, 0.5)
+                st.session_state.study = st.number_input("Study/Focus (hours)", 0.0, 24.0, st.session_state.study, 0.5)
 
-        st.text_area("Notes (optional)", key="note")
+            st.session_state.note = st.text_area("Notes (optional)", value=st.session_state.note)
 
-        save_col, clear_col = st.columns([3,1])
-        with save_col:
-            st.button("💾 Save entry", use_container_width=True, on_click=save_current_entry)
-        with clear_col:
-            st.button("🧹 Clear form", use_container_width=True, on_click=reset_form)
+            save_col, clear_col = st.columns([3,1])
+            with save_col:
+                save_clicked = st.form_submit_button("💾 Save entry", use_container_width=True)
+            with clear_col:
+                clear_clicked = st.form_submit_button("🧹 Clear form", use_container_width=True)
+
+        if save_clicked:
+            insert_entry(
+                str(st.session_state.dt),
+                int(st.session_state.mood),
+                float(st.session_state.sleep),
+                float(st.session_state.study),
+                st.session_state.note.strip()
+            )
+            st.toast("Saved ✅", icon="✅")
+
+        if clear_clicked:
+            for k, v in DEFAULTS.items():
+                st.session_state[k] = v
+            st.toast("Form cleared 🧹", icon="🧹")
 
         st.divider()
         st.subheader("Your timeline")
@@ -171,22 +156,28 @@ def main():
             st.download_button("⬇️ Export CSV", data=csv_bytes, file_name="wellnest_moods.csv", mime="text/csv")
 
             with st.expander("Manage data"):
-                st.button("↩️ Delete last entry", on_click=delete_last_entry)
+                if st.button("↩️ Delete last entry"):
+                    delete_last_entry()
+                    st.success("Deleted last entry.")
                 sure = st.checkbox("I'm sure — delete **ALL** entries")
-                st.button("🗑️ Clear all entries", type="secondary", disabled=not sure, on_click=clear_all_entries)
+                if st.button("🗑️ Clear all entries", type="secondary", disabled=not sure):
+                    clear_all_entries()
+                    st.success("All entries cleared.")
 
+            # Plot with readable date ticks
             try:
                 df_plot = df.copy()
-                df_plot["ts"] = pd.to_datetime(df_plot["ts"])
+                df_plot["ts"] = pd.to_datetime(df_plot["ts"]).dt.date
                 df_plot = df_plot.sort_values("ts")
 
-                fig, ax = plt.subplots()
+                fig, ax = plt.subplots(figsize=(6.5, 3.5))
                 ax.plot(df_plot["ts"], df_plot["mood"], marker="o", linestyle="-")
                 ax.set_title("Mood over time")
                 ax.set_xlabel("Date")
                 ax.set_ylabel("Mood (1–5)")
+                ax.set_ylim(1, 5)
 
-                locator = mdates.AutoDateLocator()
+                locator = mdates.AutoDateLocator(minticks=3, maxticks=6)
                 formatter = mdates.ConciseDateFormatter(locator)
                 ax.xaxis.set_major_locator(locator)
                 ax.xaxis.set_major_formatter(formatter)
@@ -196,15 +187,10 @@ def main():
             except Exception as e:
                 st.warning(f"Couldn't render chart: {e}")
 
-    # ---------- Supportive Chat ----------
+    # ---------- Supportive Chat (local only) ----------
     with tab2:
         st.subheader("Supportive Chat")
-        st.write("Private by default; no PII logging. Enter your **OpenAI API key** in Settings to use AI, or use the local helper.")
-
-        with st.expander("Settings"):
-            key = st.text_input("OPENAI_API_KEY (optional)", type="password")
-            if key:
-                os.environ["OPENAI_API_KEY"] = key
+        st.write("Private by default; no PII logging. Replies are generated locally with simple supportive tips (no internet required).")
 
         user_text = st.text_area("What's on your mind?", height=140)
 
@@ -213,7 +199,7 @@ def main():
 
         if st.button("Send", use_container_width=True):
             with st.spinner("Thinking..."):
-                reply = therapist_response(user_text)
+                reply = local_supportive_reply(user_text)
                 st.write(reply)
 
 if __name__ == "__main__":
