@@ -59,10 +59,6 @@ Oct 22 2025 — Added form reset and data-management tools
 
 Oct 23 2025 — Recorded demo video and refined README
 
-License
-MIT License © 2025 Varun Umapathy
-Fork or adapt for educational and personal use.
-
 Links
 Demo Video: https://youtu.be/NWBWtQHVDMU
 
